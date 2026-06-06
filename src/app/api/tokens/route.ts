@@ -2,10 +2,43 @@ import { NextRequest, NextResponse } from "next/server";
 
 const DEXSCREENER_SEARCH = "https://api.dexscreener.com/latest/dex/search?q=";
 const DEXSCREENER_TOKEN = "https://api.dexscreener.com/latest/dex/tokens/";
+const DEXSCREENER_PROFILES = "https://api.dexscreener.com/token-profiles/latest/v1";
+const DEXSCREENER_BOOSTS = "https://api.dexscreener.com/token-boosts/top/v1";
 const BSCSCAN_API = "https://api.bscscan.com/api";
 
-// Free BscScan API key (public demo key)
 const BSCSCAN_API_KEY = "YourApiKeyToken";
+
+// Known BSC tokens to always include
+const FEATURED_TOKENS = [
+  "0x1B9cf733c04c7bC3B81F1DC3E580755597f59cE4", // UNL
+  "0xF2874b590a7D743725c923426d43387A50cbD1Be", // Blcio
+  "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82", // CAKE
+  "0x2170Ed0880ac9A755fd29B2688956BD959F933F8", // ETH on BSC
+  "0x55d398326f99059fF775485246999027B3197955", // USDT on BSC
+  "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c", // WBNB
+];
+
+// Broader search terms to discover more BSC tokens
+const DISCOVERY_TERMS = [
+  "bnb",
+  "cake",
+  "pancake",
+  "bsc",
+  "doge bsc",
+  "floki bsc",
+  "safemoon",
+  "babydoge",
+  "pepe bsc",
+  "memecoin bsc",
+  "defi bsc",
+  "ai bsc",
+  "gaming bsc",
+  "meme bsc",
+  "launchpad bsc",
+  "arb bsc",
+  "trump bsc",
+  "elon bsc",
+];
 
 interface DexPair {
   chainId: string;
@@ -46,6 +79,16 @@ interface DexPair {
   };
 }
 
+interface TokenProfile {
+  url: string;
+  chainId: string;
+  tokenAddress: string;
+  icon?: string;
+  header?: string;
+  description?: string;
+  links?: { label?: string; type?: string; url: string }[];
+}
+
 interface TokenData {
   contractAddress: string;
   name: string;
@@ -63,9 +106,10 @@ interface TokenData {
   txns24h: { buys: number; sells: number } | null;
   imageUrl: string | null;
   bscscanUrl: string;
+  isFeatured: boolean;
 }
 
-function deduplicateTokens(pairs: DexPair[]): TokenData[] {
+function deduplicateTokens(pairs: DexPair[], existingAddrs?: Set<string>): TokenData[] {
   const seen = new Map<string, DexPair>();
 
   for (const pair of pairs) {
@@ -79,8 +123,10 @@ function deduplicateTokens(pairs: DexPair[]): TokenData[] {
 
   const tokens: TokenData[] = [];
   for (const [, pair] of seen) {
+    const addr = pair.baseToken.address.toLowerCase();
+    if (existingAddrs?.has(addr)) continue;
     tokens.push({
-      contractAddress: pair.baseToken.address.toLowerCase(),
+      contractAddress: addr,
       name: pair.baseToken.name,
       symbol: pair.baseToken.symbol,
       priceUsd: pair.priceUsd ? parseFloat(pair.priceUsd) : null,
@@ -96,10 +142,50 @@ function deduplicateTokens(pairs: DexPair[]): TokenData[] {
       txns24h: pair.txns?.h24 ?? null,
       imageUrl: pair.info?.imageUrl ?? null,
       bscscanUrl: `https://bscscan.com/token/${pair.baseToken.address}`,
+      isFeatured: false,
     });
   }
 
   return tokens;
+}
+
+async function fetchTokenByAddress(address: string): Promise<TokenData[]> {
+  try {
+    const res = await fetch(`${DEXSCREENER_TOKEN}${address}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return deduplicateTokens(data.pairs || []);
+  } catch {
+    return [];
+  }
+}
+
+async function fetchBscTokenProfiles(): Promise<string[]> {
+  // Get BSC token addresses from DexScreener profiles
+  try {
+    const res = await fetch(DEXSCREENER_PROFILES);
+    if (!res.ok) return [];
+    const profiles: TokenProfile[] = await res.json();
+    return profiles
+      .filter((p) => p.chainId === "bsc")
+      .map((p) => p.tokenAddress);
+  } catch {
+    return [];
+  }
+}
+
+async function fetchBscBoostedTokens(): Promise<string[]> {
+  // Get BSC boosted token addresses
+  try {
+    const res = await fetch(DEXSCREENER_BOOSTS);
+    if (!res.ok) return [];
+    const boosts: TokenProfile[] & { totalAmount?: number }[] = await res.json();
+    return boosts
+      .filter((b) => b.chainId === "bsc")
+      .map((b) => b.tokenAddress);
+  } catch {
+    return [];
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -109,29 +195,36 @@ export async function GET(request: NextRequest) {
   const sort = searchParams.get("sort") || "priceChange24h";
   const order = searchParams.get("order") || "desc";
   const page = parseInt(searchParams.get("page") || "1");
-  const limit = parseInt(searchParams.get("limit") || "50");
+  const limit = parseInt(searchParams.get("limit") || "100");
 
   try {
     let tokens: TokenData[] = [];
+    const allAddrs = new Set<string>();
+
+    const addTokens = (newTokens: TokenData[]) => {
+      for (const t of newTokens) {
+        if (!allAddrs.has(t.contractAddress)) {
+          allAddrs.add(t.contractAddress);
+          tokens.push(t);
+        }
+      }
+    };
 
     if (addressQuery) {
-      // Look up specific contract address via DexScreener
-      const res = await fetch(`${DEXSCREENER_TOKEN}${addressQuery}`);
-      if (!res.ok) throw new Error("DexScreener API error");
-      const data = await res.json();
-      const pairs: DexPair[] = data.pairs || [];
-      tokens = deduplicateTokens(pairs);
+      // Look up specific contract address
+      const found = await fetchTokenByAddress(addressQuery);
+      addTokens(found);
 
-      // Also try to get info from BscScan
-      try {
-        const bscRes = await fetch(
-          `${BSCSCAN_API}?module=account&action=tokentx&contractaddress=${addressQuery}&page=1&offset=1&sort=desc&apikey=${BSCSCAN_API_KEY}`
-        );
-        if (bscRes.ok) {
-          const bscData = await bscRes.json();
-          if (bscData.result && Array.isArray(bscData.result) && bscData.result.length > 0) {
-            const tokenInfo = bscData.result[0];
-            if (tokens.length === 0) {
+      // If DexScreener didn't have it, try BscScan
+      if (tokens.length === 0) {
+        try {
+          const bscRes = await fetch(
+            `${BSCSCAN_API}?module=account&action=tokentx&contractaddress=${addressQuery}&page=1&offset=1&sort=desc&apikey=${BSCSCAN_API_KEY}`
+          );
+          if (bscRes.ok) {
+            const bscData = await bscRes.json();
+            if (bscData.result && Array.isArray(bscData.result) && bscData.result.length > 0) {
+              const tokenInfo = bscData.result[0];
               tokens.push({
                 contractAddress: addressQuery.toLowerCase(),
                 name: tokenInfo.tokenName || "Unknown",
@@ -149,58 +242,83 @@ export async function GET(request: NextRequest) {
                 txns24h: null,
                 imageUrl: null,
                 bscscanUrl: `https://bscscan.com/token/${addressQuery}`,
+                isFeatured: true,
               });
             }
           }
+        } catch {
+          // BscScan lookup failed
         }
-      } catch {
-        // BscScan lookup failed, continue with DexScreener data
       }
     } else if (searchQuery) {
       // Search tokens via DexScreener
       const res = await fetch(`${DEXSCREENER_SEARCH}${encodeURIComponent(searchQuery)}`);
       if (!res.ok) throw new Error("DexScreener API error");
       const data = await res.json();
-      const pairs: DexPair[] = data.pairs || [];
-      tokens = deduplicateTokens(pairs);
+      const found = deduplicateTokens(data.pairs || []);
+      addTokens(found);
     } else {
-      // Default: fetch a broad set of BSC tokens by searching popular terms
-      const searchTerms = ["bnb", "cake", "bsc", "pancake", "doge bsc"];
-      const allPairs: DexPair[] = [];
+      // === DEFAULT: Comprehensive BSC token discovery ===
 
-      const results = await Promise.allSettled(
-        searchTerms.map(async (term) => {
+      // Step 1: Fetch featured tokens directly by address
+      const featuredResults = await Promise.allSettled(
+        FEATURED_TOKENS.map((addr) => fetchTokenByAddress(addr))
+      );
+      for (const result of featuredResults) {
+        if (result.status === "fulfilled") {
+          for (const t of result.value) {
+            t.isFeatured = true;
+          }
+          addTokens(result.value);
+        }
+      }
+
+      // Step 2: Get BSC tokens from DexScreener token profiles
+      const profileAddresses = await fetchBscTokenProfiles();
+      if (profileAddresses.length > 0) {
+        // Fetch in batches of 5 to avoid rate limiting
+        const batchSize = 5;
+        for (let i = 0; i < Math.min(profileAddresses.length, 30); i += batchSize) {
+          const batch = profileAddresses.slice(i, i + batchSize);
+          const batchResults = await Promise.allSettled(
+            batch.map((addr) => fetchTokenByAddress(addr))
+          );
+          for (const result of batchResults) {
+            if (result.status === "fulfilled") {
+              addTokens(result.value);
+            }
+          }
+        }
+      }
+
+      // Step 3: Get BSC boosted tokens
+      const boostAddresses = await fetchBscBoostedTokens();
+      if (boostAddresses.length > 0) {
+        const boostResults = await Promise.allSettled(
+          boostAddresses.slice(0, 10).map((addr) => fetchTokenByAddress(addr))
+        );
+        for (const result of boostResults) {
+          if (result.status === "fulfilled") {
+            addTokens(result.value);
+          }
+        }
+      }
+
+      // Step 4: Broad search for trending BSC tokens
+      const searchResults = await Promise.allSettled(
+        DISCOVERY_TERMS.map(async (term) => {
           const res = await fetch(`${DEXSCREENER_SEARCH}${encodeURIComponent(term)}`);
-          if (!res.ok) return [];
+          if (!res.ok) return [] as DexPair[];
           const data = await res.json();
           return (data.pairs || []) as DexPair[];
         })
       );
 
-      for (const result of results) {
+      for (const result of searchResults) {
         if (result.status === "fulfilled") {
-          allPairs.push(...result.value);
+          const found = deduplicateTokens(result.value, allAddrs);
+          addTokens(found);
         }
-      }
-
-      tokens = deduplicateTokens(allPairs);
-
-      // Also fetch the UNL token specifically
-      try {
-        const unlRes = await fetch(`${DEXSCREENER_TOKEN}0x1B9cf733c04c7bC3B81F1DC3E580755597f59cE4`);
-        if (unlRes.ok) {
-          const unlData = await unlRes.json();
-          const unlPairs: DexPair[] = unlData.pairs || [];
-          const unlTokens = deduplicateTokens(unlPairs);
-          const existingAddrs = new Set(tokens.map((t) => t.contractAddress));
-          for (const t of unlTokens) {
-            if (!existingAddrs.has(t.contractAddress)) {
-              tokens.push(t);
-            }
-          }
-        }
-      } catch {
-        // UNL token fetch failed, continue
       }
     }
 

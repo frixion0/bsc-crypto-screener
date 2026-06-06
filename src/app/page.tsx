@@ -12,13 +12,14 @@ import {
   TrendingDown,
   Coins,
   BarChart3,
-  Loader2,
   Copy,
   Check,
   Flame,
   Zap,
   Filter,
   X,
+  Star,
+  Rocket,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,7 @@ interface TokenData {
   txns24h: { buys: number; sells: number } | null;
   imageUrl: string | null;
   bscscanUrl: string;
+  isFeatured: boolean;
 }
 
 type SortField =
@@ -60,9 +62,10 @@ type SortField =
   | "liquidity"
   | "name";
 type SortOrder = "asc" | "desc";
-type FilterMode = "all" | "gainers" | "losers" | "volume";
+type FilterMode = "all" | "gainers" | "losers" | "volume" | "hot";
 
 const UNL_ADDRESS = "0x1B9cf733c04c7bC3B81F1DC3E580755597f59cE4";
+const BLCIO_ADDRESS = "0xF2874b590a7D743725c923426d43387A50cbD1Be";
 
 function formatNumber(num: number | null, decimals = 2): string {
   if (num === null || num === undefined) return "—";
@@ -83,6 +86,7 @@ function formatPrice(price: number | null): string {
 function formatPercent(pct: number | null): string {
   if (pct === null || pct === undefined) return "—";
   const sign = pct >= 0 ? "+" : "";
+  if (Math.abs(pct) >= 1000) return `${sign}${pct.toFixed(0)}%`;
   return `${sign}${pct.toFixed(2)}%`;
 }
 
@@ -114,7 +118,7 @@ export default function BSCScreener() {
       } else if (query) {
         url += `q=${encodeURIComponent(query)}`;
       }
-      url += `&sort=${sortField}&order=${sortOrder}`;
+      url += `&sort=${sortField}&order=${sortOrder}&limit=100`;
 
       const res = await fetch(url);
       const data = await res.json();
@@ -196,11 +200,14 @@ export default function BSCScreener() {
     }
   }, []);
 
-  const loadUNL = useCallback(() => {
-    setSearchInput(UNL_ADDRESS);
-    setSearchQuery(UNL_ADDRESS);
-    fetchTokens(undefined, UNL_ADDRESS);
-  }, [fetchTokens]);
+  const loadToken = useCallback(
+    (address: string, label: string) => {
+      setSearchInput(address);
+      setSearchQuery(label);
+      fetchTokens(undefined, address);
+    },
+    [fetchTokens]
+  );
 
   const clearSearch = useCallback(() => {
     setSearchInput("");
@@ -223,6 +230,17 @@ export default function BSCScreener() {
         result = result.filter((t) => t.volume24h !== null && t.volume24h > 0);
         result.sort((a, b) => (b.volume24h ?? 0) - (a.volume24h ?? 0));
         break;
+      case "hot":
+        // Hot = high 24h gain with significant volume
+        result = result.filter(
+          (t) =>
+            t.priceChange24h !== null &&
+            t.priceChange24h > 5 &&
+            t.volume24h !== null &&
+            t.volume24h > 100
+        );
+        result.sort((a, b) => (b.priceChange24h ?? 0) - (a.priceChange24h ?? 0));
+        break;
     }
 
     return result;
@@ -235,10 +253,7 @@ export default function BSCScreener() {
     const topGainer = gainers.length > 0
       ? gainers.reduce((max, t) => (t.priceChange24h! > max.priceChange24h! ? t : max))
       : null;
-    const topLoser = losers.length > 0
-      ? losers.reduce((min, t) => (t.priceChange24h! < min.priceChange24h! ? t : min))
-      : null;
-    return { gainers: gainers.length, losers: losers.length, topGainer, topLoser };
+    return { gainers: gainers.length, losers: losers.length, topGainer };
   }, [tokens]);
 
   const SortIcon = ({ field }: { field: SortField }) => {
@@ -297,7 +312,7 @@ export default function BSCScreener() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Search by name, symbol, or contract address (e.g. 0x1B9c...9cE4)"
+                placeholder="Search by name, symbol, or contract address..."
                 className="pl-10 pr-10 bg-[#12121a] border-white/10 text-white placeholder:text-zinc-600 focus:border-yellow-500/50 focus:ring-yellow-500/20 h-11"
               />
               {searchInput && (
@@ -323,11 +338,20 @@ export default function BSCScreener() {
             <Button
               variant="outline"
               size="sm"
-              onClick={loadUNL}
+              onClick={() => loadToken(UNL_ADDRESS, "UNL")}
               className="bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 hover:text-yellow-300"
             >
               <Zap className="w-3 h-3 mr-1" />
-              UNL Token
+              UNL
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => loadToken(BLCIO_ADDRESS, "Blcio")}
+              className="bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300"
+            >
+              <Rocket className="w-3 h-3 mr-1" />
+              Blcio
             </Button>
             <Button
               variant="outline"
@@ -358,7 +382,7 @@ export default function BSCScreener() {
         </div>
 
         {/* Stats Cards */}
-        {!searchQuery && tokens.length > 0 && (
+        {tokens.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card className="bg-[#12121a] border-white/5 p-4">
               <div className="flex items-center gap-2 mb-1">
@@ -399,7 +423,7 @@ export default function BSCScreener() {
             <Filter className="w-3 h-3" />
             <span>Filter:</span>
           </div>
-          {(["all", "gainers", "losers", "volume"] as FilterMode[]).map((mode) => (
+          {(["all", "gainers", "losers", "volume", "hot"] as FilterMode[]).map((mode) => (
             <Button
               key={mode}
               variant="ghost"
@@ -407,11 +431,21 @@ export default function BSCScreener() {
               onClick={() => setFilterMode(mode)}
               className={`h-7 text-xs px-3 rounded-full ${
                 filterMode === mode
-                  ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                  ? mode === "hot"
+                    ? "bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                    : "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
                   : "bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white border border-transparent"
               }`}
             >
-              {mode === "all" ? "All" : mode === "gainers" ? "🟢 Gainers" : mode === "losers" ? "🔴 Losers" : "📊 Volume"}
+              {mode === "all"
+                ? "All"
+                : mode === "gainers"
+                ? "🟢 Gainers"
+                : mode === "losers"
+                ? "🔴 Losers"
+                : mode === "volume"
+                ? "📊 Volume"
+                : "🔥 Hot"}
             </Button>
           ))}
           <div className="ml-auto flex items-center gap-2">
@@ -533,7 +567,9 @@ export default function BSCScreener() {
                   : filteredTokens.map((token, index) => (
                       <tr
                         key={token.contractAddress}
-                        className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group"
+                        className={`border-b border-white/5 hover:bg-white/[0.02] transition-colors group ${
+                          token.isFeatured ? "bg-yellow-500/[0.03]" : ""
+                        }`}
                       >
                         <td className="px-4 py-3 text-sm text-zinc-500">{index + 1}</td>
                         <td className="px-4 py-3">
@@ -553,9 +589,14 @@ export default function BSCScreener() {
                               </div>
                             )}
                             <div>
-                              <p className="text-sm font-medium text-white group-hover:text-yellow-300 transition-colors">
-                                {token.name}
-                              </p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-sm font-medium text-white group-hover:text-yellow-300 transition-colors">
+                                  {token.name}
+                                </p>
+                                {token.isFeatured && (
+                                  <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                                )}
+                              </div>
                               <p className="text-[11px] text-zinc-500">{token.symbol}</p>
                             </div>
                           </div>
@@ -636,7 +677,9 @@ export default function BSCScreener() {
               : filteredTokens.map((token, index) => (
                   <div
                     key={token.contractAddress}
-                    className="p-4 border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+                    className={`p-4 border-b border-white/5 hover:bg-white/[0.02] transition-colors ${
+                      token.isFeatured ? "bg-yellow-500/[0.03]" : ""
+                    }`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
@@ -655,9 +698,10 @@ export default function BSCScreener() {
                             {token.symbol.slice(0, 2)}
                           </div>
                         )}
-                        <div>
+                        <div className="flex items-center gap-1">
                           <span className="text-sm font-medium text-white">{token.name}</span>
-                          <span className="text-xs text-zinc-500 ml-1.5">{token.symbol}</span>
+                          {token.isFeatured && <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />}
+                          <span className="text-xs text-zinc-500 ml-0.5">{token.symbol}</span>
                         </div>
                       </div>
                       <span
