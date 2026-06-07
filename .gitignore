@@ -36,7 +36,6 @@ yarn-error.log*
 # vercel
 .vercel
 
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
@@ -48,7 +47,26 @@ dev.log
 dev.out.log
 test
 prompt
-
 server.log
+
 # Skills directory
 /skills/
+
+# Prisma DB
+db/
+prisma/
+
+# Z scripts
+.zscripts/
+
+# Examples
+examples/
+
+# Download
+download/
+
+# Caddy config
+Caddyfile
+
+# Worklog
+worklog.md
