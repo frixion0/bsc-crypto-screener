@@ -18,26 +18,26 @@ const FEATURED_TOKENS = [
   "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c", // WBNB
 ];
 
-// Broader search terms to discover more BSC tokens
+// Search terms based on crypto categories/narratives (from Mudrex categories + web3)
 const DISCOVERY_TERMS = [
-  "bnb",
-  "cake",
-  "pancake",
-  "bsc",
-  "doge bsc",
-  "floki bsc",
-  "safemoon",
-  "babydoge",
-  "pepe bsc",
-  "memecoin bsc",
-  "defi bsc",
-  "ai bsc",
   "gaming bsc",
+  "social media bsc",
+  "staking bsc",
+  "real world assets bsc",
+  "layer 2 bsc",
+  "depin bsc",
+  "storage bsc",
+  "education bsc",
+  "web3 token bsc",
+  "defi bsc",
+  "web3 infrastructure bsc",
+  "privacy bsc",
+  "fan token bsc",
   "meme bsc",
-  "launchpad bsc",
-  "arb bsc",
-  "trump bsc",
-  "elon bsc",
+  "scaling bsc",
+  "artificial intelligence bsc",
+  "stablecoin bsc",
+  "web3 bsc",
 ];
 
 interface DexPair {
