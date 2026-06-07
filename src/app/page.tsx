@@ -20,6 +20,11 @@ import {
   X,
   Star,
   Rocket,
+  ChevronLeft,
+  ChevronRight,
+  Activity,
+  DollarSign,
+  Hash,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -137,6 +142,7 @@ export default function BSCScreener() {
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [selectedToken, setSelectedToken] = useState<TokenData | null>(null);
 
   const fetchTokens = useCallback(async (query?: string, address?: string) => {
     setLoading(true);
@@ -280,6 +286,30 @@ export default function BSCScreener() {
     fetchTokens();
   }, [fetchTokens]);
 
+  const openChart = useCallback((token: TokenData, e?: React.MouseEvent) => {
+    // Prevent opening chart when clicking action buttons (copy, bscscan link)
+    if (e) {
+      const target = e.target as HTMLElement;
+      if (target.closest("button") || target.closest("a")) return;
+    }
+    setSelectedToken(token);
+  }, []);
+
+  const closeChart = useCallback(() => {
+    setSelectedToken(null);
+  }, []);
+
+  // Close chart on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && selectedToken) {
+        closeChart();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedToken, closeChart]);
+
   // Client-side filtering
   const filteredTokens = useMemo(() => {
     let result = [...tokens];
@@ -330,8 +360,168 @@ export default function BSCScreener() {
     );
   };
 
+  // Build DexScreener chart embed URL
+  const chartEmbedUrl = selectedToken
+    ? `https://dexscreener.com/bsc/${selectedToken.contractAddress}?embed=1&theme=dark&info=0`
+    : "";
+
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
+      {/* Chart Modal */}
+      {selectedToken && (
+        <div className="fixed inset-0 z-[100] flex justify-end">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={closeChart}
+          />
+          {/* Slide-over Panel */}
+          <div className="relative w-full max-w-2xl bg-[#0d0d14] border-l border-white/10 flex flex-col animate-slide-in">
+            {/* Chart Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+              <div className="flex items-center gap-3">
+                {selectedToken.imageUrl ? (
+                  <img
+                    src={selectedToken.imageUrl}
+                    alt={selectedToken.symbol}
+                    className="w-8 h-8 rounded-full"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-500/30 to-amber-700/30 flex items-center justify-center text-xs font-bold text-yellow-400">
+                    {selectedToken.symbol.slice(0, 2)}
+                  </div>
+                )}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-white">{selectedToken.name}</h2>
+                    <span className="text-xs text-zinc-500">{selectedToken.symbol}</span>
+                    {selectedToken.isFeatured && (
+                      <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    <span className="text-sm font-mono text-white">
+                      {formatPrice(selectedToken.priceUsd)}
+                    </span>
+                    <span
+                      className={`text-xs font-semibold ${
+                        selectedToken.priceChange24h === null
+                          ? "text-zinc-500"
+                          : selectedToken.priceChange24h >= 0
+                          ? "text-emerald-400"
+                          : "text-red-400"
+                      }`}
+                    >
+                      {formatPercent(selectedToken.priceChange24h)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={closeChart}
+                className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Token Stats Bar */}
+            <div className="grid grid-cols-4 gap-2 px-4 py-2 border-b border-white/5 bg-[#0a0a12]">
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-1 text-[10px] text-zinc-500 mb-0.5">
+                  <DollarSign className="w-2.5 h-2.5" />
+                  Volume
+                </div>
+                <p className="text-xs font-semibold text-white">{formatNumber(selectedToken.volume24h)}</p>
+              </div>
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-1 text-[10px] text-zinc-500 mb-0.5">
+                  <BarChart3 className="w-2.5 h-2.5" />
+                  MCap
+                </div>
+                <p className="text-xs font-semibold text-white">{formatNumber(selectedToken.marketCap)}</p>
+              </div>
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-1 text-[10px] text-zinc-500 mb-0.5">
+                  <Activity className="w-2.5 h-2.5" />
+                  Liquidity
+                </div>
+                <p className="text-xs font-semibold text-white">{formatNumber(selectedToken.liquidity)}</p>
+              </div>
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-1 text-[10px] text-zinc-500 mb-0.5">
+                  <Hash className="w-2.5 h-2.5" />
+                  DEX
+                </div>
+                <p className="text-xs font-semibold text-white uppercase">{selectedToken.dex}</p>
+              </div>
+            </div>
+
+            {/* DexScreener Chart Embed */}
+            <div className="flex-1 min-h-0">
+              <iframe
+                src={chartEmbedUrl}
+                className="w-full h-full border-0"
+                style={{ minHeight: "400px" }}
+                allow="clipboard-write"
+                title={`${selectedToken.name} Chart`}
+              />
+            </div>
+
+            {/* Chart Footer - Actions */}
+            <div className="flex items-center gap-2 px-4 py-3 border-t border-white/5 bg-[#0a0a12]">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10 hover:text-white"
+                onClick={() => copyAddress(selectedToken.contractAddress)}
+              >
+                {copiedAddress === selectedToken.contractAddress ? (
+                  <>
+                    <Check className="w-3 h-3 mr-1.5 text-emerald-400" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3 mr-1.5" />
+                    Copy Contract
+                  </>
+                )}
+              </Button>
+              <a
+                href={selectedToken.bscscanUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1"
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10 hover:text-white"
+                >
+                  <ExternalLink className="w-3 h-3 mr-1.5" />
+                  BscScan
+                </Button>
+              </a>
+              <a
+                href={`https://dexscreener.com/bsc/${selectedToken.contractAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1"
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 hover:text-yellow-300"
+                >
+                  <BarChart3 className="w-3 h-3 mr-1.5" />
+                  DexScreener
+                </Button>
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="sticky top-0 z-50 bg-[#0d0d14]/95 backdrop-blur-xl border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
@@ -633,9 +823,10 @@ export default function BSCScreener() {
                   : filteredTokens.map((token, index) => (
                       <tr
                         key={token.contractAddress}
-                        className={`border-b border-white/5 hover:bg-white/[0.02] transition-colors group ${
+                        onClick={(e) => openChart(token, e)}
+                        className={`border-b border-white/5 hover:bg-white/[0.04] transition-colors group cursor-pointer ${
                           token.isFeatured ? "bg-yellow-500/[0.03]" : ""
-                        }`}
+                        } ${selectedToken?.contractAddress === token.contractAddress ? "bg-yellow-500/[0.06]" : ""}`}
                       >
                         <td className="px-4 py-3 text-sm text-zinc-500">{index + 1}</td>
                         <td className="px-4 py-3">
@@ -743,9 +934,10 @@ export default function BSCScreener() {
               : filteredTokens.map((token, index) => (
                   <div
                     key={token.contractAddress}
-                    className={`p-4 border-b border-white/5 hover:bg-white/[0.02] transition-colors ${
+                    onClick={(e) => openChart(token, e)}
+                    className={`p-4 border-b border-white/5 hover:bg-white/[0.04] transition-colors cursor-pointer ${
                       token.isFeatured ? "bg-yellow-500/[0.03]" : ""
-                    }`}
+                    } ${selectedToken?.contractAddress === token.contractAddress ? "bg-yellow-500/[0.06]" : ""}`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
