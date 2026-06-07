@@ -18,17 +18,25 @@ const FEATURED_TOKENS = [
   "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c", // WBNB
 ];
 
-// Search terms based on crypto categories/narratives (from Mudrex categories + web3)
+// Search terms based on Mudrex crypto categories + web3
 const DISCOVERY_TERMS = [
+  // From Mudrex screenshots
+  "smart contract platforms bsc",
+  "payments bsc",
+  "centralized exchange bsc",
+  "interoperability bsc",
+  "decentralized exchange bsc",
+  "data management bsc",
+  "media and entertainment bsc",
+  "nft metaverse bsc",
   "gaming bsc",
   "social media bsc",
   "staking bsc",
   "real world assets bsc",
   "layer 2 bsc",
   "depin bsc",
-  "storage bsc",
+  "storage file sharing bsc",
   "education bsc",
-  "web3 token bsc",
   "defi bsc",
   "web3 infrastructure bsc",
   "privacy bsc",
@@ -37,6 +45,8 @@ const DISCOVERY_TERMS = [
   "scaling bsc",
   "artificial intelligence bsc",
   "stablecoin bsc",
+  // Web3 token term (user requested)
+  "web3 token bsc",
   "web3 bsc",
 ];
 

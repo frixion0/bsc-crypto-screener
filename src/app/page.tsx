@@ -67,6 +67,37 @@ type FilterMode = "all" | "gainers" | "losers" | "volume" | "hot";
 const UNL_ADDRESS = "0x1B9cf733c04c7bC3B81F1DC3E580755597f59cE4";
 const BLCIO_ADDRESS = "0xF2874b590a7D743725c923426d43387A50cbD1Be";
 
+// Mudrex crypto categories for quick search
+const MUDREX_CATEGORIES = [
+  { label: "Gaming", query: "gaming bsc", color: "violet" },
+  { label: "Social Media", query: "social media bsc", color: "blue" },
+  { label: "Staking", query: "staking bsc", color: "green" },
+  { label: "Real World Assets", query: "real world assets bsc", color: "teal" },
+  { label: "Layer 2", query: "layer 2 bsc", color: "cyan" },
+  { label: "DePIN", query: "depin bsc", color: "orange" },
+  { label: "Storage", query: "storage file sharing bsc", color: "amber" },
+  { label: "Education", query: "education bsc", color: "lime" },
+  { label: "DeFi", query: "defi bsc", color: "yellow" },
+  { label: "Web3 Infra", query: "web3 infrastructure bsc", color: "purple" },
+  { label: "Privacy", query: "privacy bsc", color: "slate" },
+  { label: "Fan Token", query: "fan token bsc", color: "rose" },
+  { label: "Meme", query: "meme bsc", color: "pink" },
+  { label: "Scaling", query: "scaling bsc", color: "indigo" },
+  { label: "AI", query: "artificial intelligence bsc", color: "emerald" },
+  { label: "Stablecoin", query: "stablecoin bsc", color: "sky" },
+  { label: "Smart Contracts", query: "smart contract platforms bsc", color: "fuchsia" },
+  { label: "Payments", query: "payments bsc", color: "red" },
+  { label: "CEX", query: "centralized exchange bsc", color: "orange" },
+  { label: "Interoperability", query: "interoperability bsc", color: "blue" },
+  { label: "DEX", query: "decentralized exchange bsc", color: "cyan" },
+  { label: "Data Mgmt", query: "data management bsc", color: "teal" },
+  { label: "Media", query: "media and entertainment bsc", color: "violet" },
+  { label: "NFT/Metaverse", query: "nft metaverse bsc", color: "purple" },
+  { label: "Web3 Token", query: "web3 token bsc", color: "yellow" },
+] as const;
+
+type CategoryColor = typeof MUDREX_CATEGORIES[number]["color"];
+
 function formatNumber(num: number | null, decimals = 2): string {
   if (num === null || num === undefined) return "—";
   if (num >= 1_000_000_000) return `$${(num / 1_000_000_000).toFixed(decimals)}B`;
@@ -209,6 +240,40 @@ export default function BSCScreener() {
     [fetchTokens]
   );
 
+  const searchCategory = useCallback(
+    (query: string, label: string) => {
+      setSearchInput(label);
+      setSearchQuery(label);
+      fetchTokens(query);
+    },
+    [fetchTokens]
+  );
+
+  const getCategoryStyle = (color: CategoryColor, active: boolean) => {
+    const colorMap: Record<string, string> = {
+      violet: "bg-violet-500/10 border-violet-500/30 text-violet-400 hover:bg-violet-500/20",
+      blue: "bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20",
+      green: "bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20",
+      teal: "bg-teal-500/10 border-teal-500/30 text-teal-400 hover:bg-teal-500/20",
+      cyan: "bg-cyan-500/10 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20",
+      orange: "bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20",
+      amber: "bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20",
+      lime: "bg-lime-500/10 border-lime-500/30 text-lime-400 hover:bg-lime-500/20",
+      yellow: "bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20",
+      purple: "bg-purple-500/10 border-purple-500/30 text-purple-400 hover:bg-purple-500/20",
+      slate: "bg-slate-500/10 border-slate-500/30 text-slate-400 hover:bg-slate-500/20",
+      rose: "bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20",
+      pink: "bg-pink-500/10 border-pink-500/30 text-pink-400 hover:bg-pink-500/20",
+      indigo: "bg-indigo-500/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/20",
+      emerald: "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20",
+      sky: "bg-sky-500/10 border-sky-500/30 text-sky-400 hover:bg-sky-500/20",
+      fuchsia: "bg-fuchsia-500/10 border-fuchsia-500/30 text-fuchsia-400 hover:bg-fuchsia-500/20",
+      red: "bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20",
+    };
+    const base = colorMap[color] || colorMap["yellow"];
+    return active ? base.replace(/\/10/g, "/25") : base;
+  };
+
   const clearSearch = useCallback(() => {
     setSearchInput("");
     setSearchQuery("");
@@ -334,50 +399,51 @@ export default function BSCScreener() {
           </div>
 
           {/* Quick Search Buttons */}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => loadToken(UNL_ADDRESS, "UNL")}
-              className="bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 hover:text-yellow-300"
-            >
-              <Zap className="w-3 h-3 mr-1" />
-              UNL
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => loadToken(BLCIO_ADDRESS, "Blcio")}
-              className="bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300"
-            >
-              <Rocket className="w-3 h-3 mr-1" />
-              Blcio
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { setSearchInput("cake"); setSearchQuery("cake"); fetchTokens("cake"); }}
-              className="bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10 hover:text-white"
-            >
-              PancakeSwap
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { setSearchInput("bnb"); setSearchQuery("bnb"); fetchTokens("bnb"); }}
-              className="bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10 hover:text-white"
-            >
-              BNB
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={clearSearch}
-              className="bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10 hover:text-white"
-            >
-              <RefreshCw className="w-3 h-3 mr-1" />
-              Reset
-            </Button>
+          <div className="space-y-2">
+            {/* Featured tokens */}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => loadToken(UNL_ADDRESS, "UNL")}
+                className="bg-yellow-500/10 border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 hover:text-yellow-300"
+              >
+                <Zap className="w-3 h-3 mr-1" />
+                UNL
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => loadToken(BLCIO_ADDRESS, "Blcio")}
+                className="bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300"
+              >
+                <Rocket className="w-3 h-3 mr-1" />
+                Blcio
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearSearch}
+                className="bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10 hover:text-white"
+              >
+                <RefreshCw className="w-3 h-3 mr-1" />
+                Reset
+              </Button>
+            </div>
+            {/* Mudrex Category Buttons */}
+            <div className="flex flex-wrap gap-1.5">
+              {MUDREX_CATEGORIES.map((cat) => (
+                <Button
+                  key={cat.label}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => searchCategory(cat.query, cat.label)}
+                  className={`h-6 text-[11px] px-2.5 rounded-full border ${getCategoryStyle(cat.color, searchQuery === cat.label)}`}
+                >
+                  {cat.label}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
 
